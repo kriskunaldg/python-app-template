@@ -53,8 +53,8 @@ spec:
       description: >-
         Set as GitHub Actions secrets on the new repo so its pipeline can build
         the image and tell Argo CD to deploy. Entered as secrets — never stored
-        in the catalog or task spec.
-      required: [dockerhubToken, argocdPassword]
+        in the catalog or task spec. (Both fields are needed for CI/CD to work,
+        but can't be marked "required" — Secret fields are validated separately.)
       properties:
         dockerhubToken:
           title: Docker Hub access token
