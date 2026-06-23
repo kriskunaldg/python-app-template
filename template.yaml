@@ -1,0 +1,93 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: python-app-template
+  title: Python App
+  description: Scaffold a new Python service — repo + CI/CD + Helm chart + Argo CD wiring
+  tags: [python, recommended]
+spec:
+  owner: group:default/development
+  type: service
+
+  # ---- The form fields shown in the UI ----
+  parameters:
+    - title: Project details
+      required: [name, owner]
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Unique name for the component (also the image name & Argo CD app name)
+          ui:autofocus: true
+          ui:options:
+            # keep it DNS/k8s-safe
+            rows: 1
+        description:
+          title: Description
+          type: string
+        owner:
+          title: Owner
+          type: string
+          description: Team that owns this service
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        dockerNamespace:
+          title: Docker Hub namespace
+          type: string
+          description: Docker Hub account the image is pushed to
+          default: kriskunal27
+
+    - title: Repository location
+      required: [repoUrl]
+      properties:
+        repoUrl:
+          title: Repository
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts: [github.com]
+
+  # ---- What happens when the form is submitted ----
+  steps:
+    - id: fetch
+      name: Render skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        # GitHub Actions workflows use ${{ }} too — copy them verbatim so Backstage
+        # does NOT try to render them. The workflow is self-referential, so it needs
+        # no templating anyway.
+        copyWithoutTemplating:
+          - .github/workflows/**
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          dockerNamespace: ${{ parameters.dockerNamespace }}
+          # parseRepoUrl yields { host, owner, repo } — used in catalog-info.yaml & mkdocs.yaml
+          destination: ${{ parameters.repoUrl | parseRepoUrl }}
+
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        repoUrl: ${{ parameters.repoUrl }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}

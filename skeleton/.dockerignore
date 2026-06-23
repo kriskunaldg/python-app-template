@@ -1,0 +1,7 @@
+.env
+
+Dockerfile*
+.dockerignore
+
+/src/hostname.py
+/src/keywords.py

@@ -1,0 +1,10 @@
+name: Test ARC
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: arc-runner-set
+    steps:
+      - run: echo "Hello from ARC"

@@ -1,0 +1,92 @@
+name: cicd
+
+# Self-referential: every value is derived from GitHub context (github.event.repository.name)
+# so this workflow works in ANY repo scaffolded from the template WITHOUT Backstage templating.
+# The template copies this file verbatim (copyWithoutTemplating) so these ${{ }} survive intact.
+
+on:
+  push:
+    paths:
+      - src/**
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    outputs:
+      commit_id: ${{ env.COMMIT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set short SHA
+        run: echo "COMMIT_ID=${GITHUB_SHA::6}" >> $GITHUB_ENV
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ env.COMMIT_ID }}
+
+  cd:
+    needs: ci
+    runs-on: arc-runner-set
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        shell: bash
+        run: |
+          sudo rm -f /usr/local/bin/yq
+          curl -fL --retry 3 -o /tmp/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          chmod +x /tmp/yq
+          sudo mv /tmp/yq /usr/local/bin/yq
+          yq --version
+
+      - name: Update Helm values with the freshly built image
+        shell: bash
+        run: |
+          yq -i '
+            .image.repository = "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}" |
+            .image.tag = "${{ needs.ci.outputs.commit_id }}"
+          ' charts/app/values.yaml
+          cat charts/app/values.yaml
+
+      - name: Commit values.yaml
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: 'charts/app/values.yaml'
+          message: 'Update image to ${{ needs.ci.outputs.commit_id }}'
+
+      - name: Install argocd CLI
+        shell: bash
+        run: |
+          curl -ksSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv ./argocd /usr/local/bin/argocd
+
+      - name: Argo CD login
+        shell: bash
+        run: |
+          argocd login argocd-server.argocd.svc.cluster.local:443 \
+            --insecure --grpc-web --username admin --password ${{ secrets.ARGOCD_PASSWORD }}
+
+      - name: Argo CD sync
+        shell: bash
+        run: |
+          argocd app sync ${{ github.event.repository.name }}

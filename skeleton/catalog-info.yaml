@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description }}
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
+    backstage.io/techdocs-ref: dir:.
+    # Wire the component page to Argo CD + Kubernetes (used in subtask 5)
+    argocd/app-name: ${{ values.name }}
+    backstage.io/kubernetes-id: ${{ values.name }}
+  tags:
+    - python
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
