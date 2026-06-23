@@ -49,6 +49,22 @@ spec:
           ui:options:
             allowedHosts: [github.com]
 
+    - title: CI / CD credentials
+      description: >-
+        Set as GitHub Actions secrets on the new repo so its pipeline can build
+        the image and tell Argo CD to deploy. Entered as secrets — never stored
+        in the catalog or task spec.
+      required: [dockerhubToken, argocdPassword]
+      properties:
+        dockerhubToken:
+          title: Docker Hub access token
+          type: string
+          ui:field: Secret
+        argocdPassword:
+          title: Argo CD admin password
+          type: string
+          ui:field: Secret
+
   # ---- What happens when the form is submitted ----
   steps:
     - id: fetch
@@ -76,6 +92,12 @@ spec:
         repoUrl: ${{ parameters.repoUrl }}
         description: ${{ parameters.description }}
         defaultBranch: main
+        # Create the repo's GitHub Actions secrets so the CI/CD pipeline works on the
+        # first push. DOCKERHUB_USERNAME == the Docker Hub namespace from the form.
+        secrets:
+          DOCKERHUB_USERNAME: ${{ parameters.dockerNamespace }}
+          DOCKERHUB_TOKEN: ${{ secrets.dockerhubToken }}
+          ARGOCD_PASSWORD: ${{ secrets.argocdPassword }}
 
     - id: register
       name: Register in catalog
