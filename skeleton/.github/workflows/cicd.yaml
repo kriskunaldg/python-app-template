@@ -88,7 +88,9 @@ jobs:
             --insecure --grpc-web --username admin --password ${{ secrets.ARGOCD_PASSWORD }}
 
       # Create the Argo CD Application on first run; --upsert makes reruns a no-op.
-      # Everything is derived from GitHub context, so this is identical for every service.
+      # With an automated sync policy, Argo CD deploys on creation and re-syncs on
+      # every git change (incl. the image-tag bump above) — so no explicit
+      # `argocd app sync` is needed (it would collide with the automated sync).
       - name: Ensure Argo CD Application exists
         shell: bash
         run: |
@@ -101,8 +103,3 @@ jobs:
             --dest-namespace ${{ github.event.repository.name }} \
             --sync-option CreateNamespace=true \
             --sync-policy automated --auto-prune --self-heal
-
-      - name: Argo CD sync
-        shell: bash
-        run: |
-          argocd app sync ${{ github.event.repository.name }}
