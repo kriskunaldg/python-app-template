@@ -86,6 +86,21 @@ jobs:
           argocd login argocd-server.argocd.svc.cluster.local:443 \
             --insecure --grpc-web --username admin --password ${{ secrets.ARGOCD_PASSWORD }}
 
+      # Create the Argo CD Application on first run; --upsert makes reruns a no-op.
+      # Everything is derived from GitHub context, so this is identical for every service.
+      - name: Ensure Argo CD Application exists
+        shell: bash
+        run: |
+          argocd app create ${{ github.event.repository.name }} \
+            --upsert \
+            --repo https://github.com/${{ github.repository }} \
+            --path charts/app \
+            --revision main \
+            --dest-server https://kubernetes.default.svc \
+            --dest-namespace ${{ github.event.repository.name }} \
+            --sync-option CreateNamespace=true \
+            --sync-policy automated --auto-prune --self-heal
+
       - name: Argo CD sync
         shell: bash
         run: |
